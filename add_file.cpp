@@ -95,7 +95,7 @@ pair<string, string> parse_line(string line){
 
 		// Find matching quote
 		for(;;){
-			end_idx = line.find_first_of(ending, begin_idx);
+			end_idx = line.find_first_of(ending, end_idx+1);
 
 			// We could not find the matching quote
 			if(end_idx == string::npos)
@@ -123,7 +123,14 @@ pair<string, string> parse_line(string line){
 
 	// begin_idx should point to the first character of the data.
 	// end_idx should either point to one past the data or is npos.
+	if(end_idx == string::npos) end_idx = line.length();
+
 	data = line.substr(begin_idx, (end_idx-begin_idx));
+
+	while(++end_idx < line.length())
+		if(line[end_idx] != ' ' && line[end_idx] != '\t')
+			throw parse_error("Too many arguments");
+
 	return make_pair(name, data);
 }
 
