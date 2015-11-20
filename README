@@ -1,0 +1,97 @@
+Mitchell Gouzenko
+mag2272
+Homework 2 - Spooler
+
+Compilation
+********************************************************************************
+To compile, run make. This produces an executable called "spooler". The commands
+addqueue, showqueue, and rmqueue are implemented as subcommands (since I didn't
+know that we had to implement these things as separate commands). However, I've
+set up shell scripts called addqueue, showqueue, and rmqueue. These shell
+scripts invoke spooler with the appropriate command line args.
+
+Installation
+********************************************************************************
+To install the appropriate commands to /usr/bin, run make install. Make install
+actually does the following configurations:
+
+	- Creates a user called "spooler", deleting any old user if necessary.
+	- Creates a directory called /var/spool/printer, overwriting any
+	  directory if it exists. This newly created directory will be the
+	  spool directory, so its permissions are set to 700.
+	- Transfers ownership of /var/spool/printer to "spooler".
+	- Changes permissions on addqueue, rmqueue, showqueue and spooler to
+	  755.
+	- Transfers ownership of the spooler executable to "spooler". This is
+	  necessary for the next part (setting the suid bit).
+	- Sets the suid bit on the spooler executable, so that any user who
+	  runs this executable will run with the privileges of "spooler".
+	- Copies addqueue, showqueue, rmqueue, and spooler to /usr/bin.
+
+Usage
+********************************************************************************
+The spooler implements addqueue, rmqueue, and showqueue as subcommands.
+
+addqueue:
+
+	./spooler addqueue [files]
+
+Files is a list of files to be added to the queue. They may be relative or
+absolute paths to the files. A path is considered absolute if and only if it
+begins with a '/'.
+
+rmqueue:
+
+	./spooler rmqueue [ids]
+
+Ids is a list of ids of files to be removed from the queue. The desired ids
+can be found with the showqueue command.
+
+showqueue:
+
+	./spooler showqueue
+
+This command simply displays the contents of the spool.
+
+IDs
+********************************************************************************
+If files are never removed from the spool, ids are allocated as contiguous
+integers. So, the first id is a 1, the second is a 2, etc.
+
+However, when a file gets deleted from the queue, its id is added to a pool of
+"free ids". When an id is assigned to a file, the pool of free ids is first
+checked. If it's nonempty, a free id is taken from the pool. Otherwise, a new
+id is created based on the number of files in the spool.
+
+The reason ID delegation is done in this way is that it's fairly human
+readable and 100% free of collisions.
+
+Filenames
+********************************************************************************
+Obviously, choosing a file name for the file in the spool directory is a bit
+of a delicate task. The original filename must not be preserved, or there will
+be collisions between files.
+
+For collision-free naming, I decided to append the file's id (prefixed with an
+underscore) to the last component of the filepath supplied by the user.
+Because I choose unique ids, this ensures that no collisions will occur. Note
+that the underscore is very important. Suppose there were no underscore.
+Consider the filename:
+
+	foo11
+
+It's not possible to tell whether foo11 was originally "foo1" (and has id 1),
+or or originally "foo" (and has id 11). Using the underscore disambiguates
+things:
+
+	foo_11 foo1_1
+
+The first file was originally called "foo", and has id 11. The second file was
+originally called "foo1" and has id 1.
+
+Testing
+********************************************************************************
+The tests are shell scripts that run some combination of addqueue, rmqueue,
+and showqueue. The tests are evaluated based on the expected output of the
+shell scripts. Each test is run, and the result is diff'ed against this
+expected output.
