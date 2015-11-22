@@ -1,3 +1,4 @@
+#include <cctype>
 #include <exception>
 #include <iostream>
 #include <string>
@@ -8,8 +9,21 @@ struct parse_error: public runtime_error{
 	parse_error(const string err): runtime_error::runtime_error(err){};
 };
 
-bool verify_string(string line){
-	cout << line;
+string verify_string(string s){
+	for(size_t i = 0; i < s.length(); i++){
+		if(!isgraph(s[i]))
+			throw parse_error(string("Invalid character") + s[i]);
+	}
+	return s;
+}
+
+bool verify_name(string name){
+	cout << name;
+	return true;
+}
+
+bool verify_data(string data){
+	cout << data;
 	return true;
 }
 
