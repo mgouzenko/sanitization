@@ -1,30 +1,158 @@
 #include <cctype>
+#include <cstdlib>
 #include <exception>
+#include <stdexcept>
+#include <sstream>
 #include <iostream>
 #include <string>
+#include <vector>
 
+int MAX_PATH_LENGTH = 300;
 using namespace std;
 
-struct parse_error: public runtime_error{
-	parse_error(const string err): runtime_error::runtime_error(err){};
+struct parse_error: public runtime_error {
+	parse_error(const string err): std::runtime_error::runtime_error(err){};
 };
 
-string verify_string(string s){
-	for(size_t i = 0; i < s.length(); i++){
-		if(!isgraph(s[i]))
-			throw parse_error(string("Invalid character") + s[i]);
+
+bool is_international(char c){
+	if(c == '\203' ||
+	   c == '\212' ||
+	   c == '\214' ||
+	   c == '\216' ||
+	   c == '\232' ||
+	   c == '\234' ||
+	   c == '\236' ||
+	   c == '\237' ||
+	   c == '\252' ||
+	   c == '\262' ||
+	   c == '\263' ||
+	   c == '\271' ||
+	   c == '\272' ||
+	   (c >= '\300' && c <= '\326') ||
+	   (c >= '\330' && c <= '\366') ||
+	   (c >= '\370' && c <= '\377'))
+		return true;
+	return false;
+}
+
+bool is_valid_char(char c, bool quoted){
+	if(quoted){
+		if(isalnum(c) || isspace(c) || is_international(c) || ispunct(c)
+				|| c == '/' || c == '\\')
+			return true;
+	} else{
+		if(isalnum(c) || is_international(c) || c == '/')
+			return true;
 	}
-	return s;
+	return false;
 }
 
-bool verify_name(string name){
-	cout << name;
-	return true;
+string escape(string s, bool quoted){
+	if(!quoted){
+		for(auto i = 0; i < s.length(); i++){
+			if(!is_valid_char(s[i], false))
+				throw parse_error("Invalid character");
+		}
+		return s;
+	}
+	else{
+		string escaped_string = "";
+		for(auto i = 0; i < s.length()-1; i++){
+			if(s[i] != '\\'){
+				if(!is_valid_char(s[i], true))
+					throw parse_error("Invalid character");
+				escaped_string += s[i];
+				continue;
+			} else if(i == s.length()-1) {
+				throw parse_error("Invalid escape sequence.");
+			} else if(isdigit(s[i+1])){
+				string octal_digits = "";
+				while(isdigit(s[i+1]))
+					octal_digits += s[++i];
+				auto char_code = strtol(octal_digits.c_str(), NULL, 8);
+				if(char_code > 255 || char_code <= 0 || !is_valid_char((char) char_code, true))
+					throw parse_error("Invalid octal integer.");
+				else {
+					escaped_string += (char) char_code;
+				}
+				continue;
+			} else if(s[i+1] == 'n'){
+				escaped_string += '\n';
+			} else if(s[i+1] == 't'){
+				escaped_string += '\t';
+			} else if(s[i+1] == 'r'){
+				escaped_string += '\r';
+			} else if(s[i+1] == '\\'){
+				escaped_string += '\\';
+			} else if(s[i+1] == '\''){
+				escaped_string += '\'';
+			} else if(s[i+1] == '\"'){
+				escaped_string += '\"';
+			} else {
+				throw parse_error("Invalid escape sequence");
+			}
+			i++;
+		}
+		return escaped_string;
+	}
 }
 
-bool verify_data(string data){
-	cout << data;
-	return true;
+string normalize_name(string name){
+	string normalized_name = "";
+	char cwdbuffer[MAX_PATH_LENGTH];
+	string cwd = getcwd(cwdbuffer, MAX_PATH_LENGTH);
+
+	if(name.length() == 0 || name.find("//") != string::npos)
+		throw parse_error("Bad file name");
+
+	int start_idx = 0;
+	if(name[0] != '/'){
+		name = cwd + '/' + name;
+	} else {
+		start_idx = 1;
+	}
+
+	if(name.back() == '/')
+		throw parse_error("Please specify a file.");
+
+	vector<string> components;
+	stringstream filename_stream(name.substr(start_idx));
+	string component;
+
+	getline(filename_stream, component, '/');
+	while(getline(filename_stream, component, '/')){
+		if(component == ".."){
+			if(components.empty())
+				throw parse_error("Bad filename");
+			else
+				components.pop_back();
+		} else {
+			components.push_back(component);
+		}
+	}
+
+	for(size_t i = 0; i < components.size()-1; i++)
+		normalized_name = normalized_name + '/' + components[i];
+
+	if(normalized_name != cwd && normalized_name != "/tmp"){
+		throw runtime_error("Can only write to files in /tmp or CWD.");
+	}
+
+	normalized_name += ('/' + components.back());
+
+	return normalized_name;
+}
+
+string sanitize(string s){
+	string sanitized_string = "";
+	for(auto i = 0; i < s.length(); i++){
+		if(s[i] == '\\') sanitized_string += "\\\\";
+		else if(s[i] == '\"') sanitized_string += "\\\"";
+		else sanitized_string += s[i];
+	}
+
+	return sanitized_string;
 }
 
 int count_slashes(string line, size_t idx){
@@ -39,6 +167,8 @@ int count_slashes(string line, size_t idx){
 
 pair<string, string> parse_line(string line){
 	if(line.empty()) throw parse_error("Empty line.");
+	bool is_name_quoted = false;
+	bool is_data_quoted = false;
 
 	string ending = " \t";
 	size_t begin_idx = 0;
@@ -46,6 +176,7 @@ pair<string, string> parse_line(string line){
 	if(line[0] == '\"' || line[0] == '\''){
 		ending = line[0];
 		begin_idx = 1;
+		is_name_quoted = true;
 	}
 
 	for(;;){
@@ -103,9 +234,9 @@ pair<string, string> parse_line(string line){
 	// The first character might be a quote. Skip it.
 	if(line[end_idx] == '\'' || line[end_idx] == '\"'){
 		// begin_idx now points to the first real character in the data.
-		cout << end_idx;
 		begin_idx = end_idx+1;
 		ending = line[end_idx];
+		is_data_quoted = true;
 
 		// Find matching quote
 		for(;;){
@@ -145,14 +276,23 @@ pair<string, string> parse_line(string line){
 		if(line[end_idx] != ' ' && line[end_idx] != '\t')
 			throw parse_error("Too many arguments");
 
-	return make_pair(name, data);
+	auto escaped_name = escape(name, is_name_quoted);
+	auto escaped_data = escape(data, is_data_quoted);
+	return make_pair(escaped_name, escaped_data);
 }
 
 int main(){
+	istringstream instream("ab\347 123\n"
+						   "\"a\\\"b\\143\" 123\n");
 	string line;
-	while(getline(cin, line)){
+	while(getline(instream, line)){
 		auto name_and_data = parse_line(line);
-		cout << name_and_data.first << endl <<
-		name_and_data.second << endl;
+
+		string normalized_name = normalize_name(name_and_data.first);
+		string sanitized_name = sanitize(normalized_name);
+		string sanitized_data = sanitize(name_and_data.second);
+		string cmd = "echo \"" + sanitized_data + "\" >> " +
+			'\"' + sanitized_name + '\"';
+		cout << cmd << endl;
 	}
 }
