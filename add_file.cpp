@@ -36,13 +36,23 @@ bool is_international(char c){
 	return false;
 }
 
+bool is_other(char c, bool quoted){
+	if(c != '\201' &&
+	   c != '\215' &&
+	   c != '\217' &&
+	   c != '\220' &&
+	   c != '\235')
+		return true;
+	else
+		return false;
+}
+
 bool is_valid_char(char c, bool quoted){
 	if(quoted){
-		if(isalnum(c) || isspace(c) || is_international(c) || ispunct(c)
-				|| c == '/' || c == '\\')
+		if(isalnum(c) || isspace(c) || is_international(c) || ispunct(c) )
 			return true;
 	} else{
-		if(isalnum(c) || is_international(c) || c == '/')
+		if(isalnum(c) || is_international(c))
 			return true;
 	}
 	return false;
@@ -58,7 +68,7 @@ string escape(string s, bool quoted){
 	}
 	else{
 		string escaped_string = "";
-		for(auto i = 0; i < s.length()-1; i++){
+		for(auto i = 0; i < s.length(); i++){
 			if(s[i] != '\\'){
 				if(!is_valid_char(s[i], true))
 					throw parse_error("Invalid character");
@@ -68,8 +78,11 @@ string escape(string s, bool quoted){
 				throw parse_error("Invalid escape sequence.");
 			} else if(isdigit(s[i+1])){
 				string octal_digits = "";
-				while(isdigit(s[i+1]))
+				int digits = 0;
+				while(isdigit(s[i+1]) && ++digits != 4)
 					octal_digits += s[++i];
+				if(digits != 3)
+					throw parse_error("Not enough octal digits");
 				auto char_code = strtol(octal_digits.c_str(), NULL, 8);
 				if(char_code > 255 || char_code <= 0 || !is_valid_char((char) char_code, true))
 					throw parse_error("Invalid octal integer.");
@@ -100,21 +113,17 @@ string escape(string s, bool quoted){
 
 string normalize_name(string name){
 	string normalized_name = "";
+	name += ".mag2272";
 	char cwdbuffer[MAX_PATH_LENGTH];
 	string cwd = getcwd(cwdbuffer, MAX_PATH_LENGTH);
 
-	if(name.length() == 0 || name.find("//") != string::npos)
+	if(name.find("//") != string::npos)
 		throw parse_error("Bad file name");
 
 	int start_idx = 0;
 	if(name[0] != '/'){
 		name = cwd + '/' + name;
-	} else {
-		start_idx = 1;
 	}
-
-	if(name.back() == '/')
-		throw parse_error("Please specify a file.");
 
 	vector<string> components;
 	stringstream filename_stream(name.substr(start_idx));
@@ -123,9 +132,7 @@ string normalize_name(string name){
 	getline(filename_stream, component, '/');
 	while(getline(filename_stream, component, '/')){
 		if(component == ".."){
-			if(components.empty())
-				throw parse_error("Bad filename");
-			else
+			if(!components.empty())
 				components.pop_back();
 		} else {
 			components.push_back(component);
@@ -147,8 +154,7 @@ string normalize_name(string name){
 string sanitize(string s){
 	string sanitized_string = "";
 	for(auto i = 0; i < s.length(); i++){
-		if(s[i] == '\\') sanitized_string += "\\\\";
-		else if(s[i] == '\"') sanitized_string += "\\\"";
+		if(s[i] == '\'') sanitized_string += "\'\\\'\'";
 		else sanitized_string += s[i];
 	}
 
@@ -282,17 +288,21 @@ pair<string, string> parse_line(string line){
 }
 
 int main(){
-	istringstream instream("ab\347 123\n"
-						   "\"a\\\"b\\143\" 123\n");
+	//istringstream instream("ab\347 123\n"
+	//					   "\"a\\\"b\\143\" 123\n"
+	//					   "\"/tmp/meow\" cat\n"
+	//					   "gotcha \" \\\"; echo gotcha; echo \\\" \"\n");
 	string line;
-	while(getline(instream, line)){
-		auto name_and_data = parse_line(line);
-
-		string normalized_name = normalize_name(name_and_data.first);
-		string sanitized_name = sanitize(normalized_name);
-		string sanitized_data = sanitize(name_and_data.second);
-		string cmd = "echo \"" + sanitized_data + "\" >> " +
-			'\"' + sanitized_name + '\"';
-		cout << cmd << endl;
+	while(getline(cin, line)){
+		try{
+			auto name_and_data = parse_line(line);
+			string normalized_name = normalize_name(name_and_data.first);
+			string sanitized_name = sanitize(normalized_name);
+			string sanitized_data = sanitize(name_and_data.second);
+			string cmd = "echo \'" + sanitized_data + "\' >> " +
+				'\'' + sanitized_name + '\'';
+			system(cmd.c_str());
+		} catch (runtime_error e){
+		}
 	}
 }
