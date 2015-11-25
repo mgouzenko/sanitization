@@ -67,7 +67,7 @@ string escape(string s, bool quoted) {
         int digits = 0;
         while (isdigit(s[i + 1]) && ++digits != 4)
           octal_digits += s[++i];
-        if (digits != 3)
+        if (octal_digits.length() != 3)
           throw parse_error("Not enough octal digits");
         auto char_code = strtol(octal_digits.c_str(), NULL, 8);
         if (char_code > 255 || char_code <= 0 ||
