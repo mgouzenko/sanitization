@@ -19,20 +19,20 @@ exec: build
 .PHONY: .FORCE clean_test_root
 
 clean_test_root:
-	@echo "================== CLEANING test_root ====================="
 	@rm -rf ./test_root/*
 
 %.in: .FORCE
-	@echo "RUNNING TESTS ON INPUT: $@"
+	@echo -n "================= $@ "
+	@python -c "print('=' * (40 - len('$@')))"
 	@mkdir test_root/$(patsubst tests/%.in,%,$@)
 	@cd test_root/$(patsubst tests/%.in,%,$@) && ../../add_file < ../../$@
 	@cd ../../
 	@echo "Testing filename(s) against expected output"
 	@ls test_root/$(patsubst tests/%.in,%,$@) | od -c | diff - $(subst .in,.out.file, $@) || true
 	@echo "Testing data against expected output"
-	@cat test_root/$(patsubst tests/%.in,%,$@) | od -c | diff - $(subst .in,.out.data, $@) || true
+	@cat test_root/$(patsubst tests/%.in,%,$@)/* 2>&1 | od -c | diff - $(subst .in,.out.data, $@) || true
 	@echo ===========================================================
-
+	@echo
 
 test: add_file clean_test_root $(TEST_INPUTS)
 # @rm -rf ./test_root/*
