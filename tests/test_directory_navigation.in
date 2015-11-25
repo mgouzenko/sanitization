@@ -1,1 +1,2 @@
 "is/../allowed" "going down a level, and back up, puts us in the cwd"
+"../test_directory_navigation/also_allowed" "going up and back into the cwd"

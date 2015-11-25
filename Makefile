@@ -28,9 +28,9 @@ clean_test_root:
 	@cd test_root/$(patsubst tests/%.in,%,$@) && ../../add_file < ../../$@
 	@cd ../../
 	@echo "Testing filename(s) against expected output"
-	@ls test_root/$(patsubst tests/%.in,%,$@) | od -c | diff - $(subst .in,.out.file, $@) || true
+	@ls -A test_root/$(patsubst tests/%.in,%,$@) | od -c | diff - $(subst .in,.out.file, $@) || true
 	@echo "Testing data against expected output"
-	@cat test_root/$(patsubst tests/%.in,%,$@)/* 2>&1 | od -c | diff - $(subst .in,.out.data, $@) || true
+	@bash -c 'GLOBIGNORE=".:.."; shopt -s dotglob; cat test_root/$(patsubst tests/%.in,%,$@)/* 2>&1 | od -c | diff - $(subst .in,.out.data, $@) || true'
 	@echo ===========================================================
 	@echo
 

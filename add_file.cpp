@@ -36,7 +36,7 @@ bool is_international(char c){
 	return false;
 }
 
-bool is_other(char c, bool quoted){
+bool is_other(char c){
 	if(c != '\201' &&
 	   c != '\215' &&
 	   c != '\217' &&
@@ -48,8 +48,9 @@ bool is_other(char c, bool quoted){
 }
 
 bool is_valid_char(char c, bool quoted){
+	if(c == '\0') return false;
 	if(quoted){
-		if(isalnum(c) || isspace(c) || is_international(c) || ispunct(c) )
+		if(isalnum(c) || isspace(c) || is_international(c) || ispunct(c) || is_other(c) )
 			return true;
 	} else{
 		if(isalnum(c) || is_international(c))
